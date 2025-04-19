@@ -18,69 +18,103 @@
   session_start();
   require_once "../connect.php";
 
+  // Configuration
+  $uploadDir = "../uploads/";
+  $maxFileSize = 1000 * 1024; // 100 KB
+  $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+
   if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_FILES['image'])) {
-    $file_tmp = $_FILES['image']['tmp_name'];
-    $file_type = $_FILES['image']['type'];
-    $file_size = $_FILES['image']['size'];
+    try {
+      // Create upload directory if not exists
+      if (!file_exists($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+      }
 
-    $allowed = array("image/jpeg", "image/jpg", "image/png");
+      $userId = $_SESSION['id'];
+      $file = $_FILES['image'];
 
-    if (in_array($file_type, $allowed)) {
+      // Validate file
+      if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception("File upload error");
+      }
 
-      $originalImage = imagecreatefromstring(file_get_contents($file_tmp));
+      if ($file['size'] > $maxFileSize) {
+        throw new Exception("File size exceeds 100KB limit");
+      }
 
+      $fileInfo = new finfo(FILEINFO_MIME_TYPE);
+      $mimeType = $fileInfo->file($file['tmp_name']);
 
+      if (!in_array($mimeType, $allowedTypes)) {
+        throw new Exception("Invalid file type");
+      }
+
+      // Get current image filename
+      $stmt = mysqli_prepare($con, "SELECT image FROM usertable WHERE id = ?");
+      mysqli_stmt_bind_param($stmt, "s", $userId);
+      mysqli_stmt_execute($stmt);
+      $result = mysqli_stmt_get_result($stmt);
+      $oldImage = mysqli_fetch_assoc($result)['image'];
+
+      // Delete old image if exists
+      if ($oldImage && file_exists($uploadDir . $oldImage)) {
+        unlink($uploadDir . $oldImage);
+      }
+
+      // Generate new filename
+      $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+      $newFilename = $userId . '_' . time() . '.' . $extension;
+      $targetPath = $uploadDir . $newFilename;
+
+      // Process image
+      $originalImage = imagecreatefromstring(file_get_contents($file['tmp_name']));
       $width = 200;
       $height = 200;
       $resizedImage = imagecreatetruecolor($width, $height);
-      imagecopyresampled($resizedImage, $originalImage, 0, 0, 0, 0, $width, $height, imagesx($originalImage), imagesy($originalImage));
+      imagecopyresampled(
+        $resizedImage,
+        $originalImage,
+        0,
+        0,
+        0,
+        0,
+        $width,
+        $height,
+        imagesx($originalImage),
+        imagesy($originalImage)
+      );
 
-      ob_start();
-      imagejpeg($resizedImage);
-      $resizedImageData = ob_get_clean(); // Get the buffered image data
-      $imageData = base64_encode($resizedImageData);
+      // Save resized image
+      imagejpeg($resizedImage, $targetPath, 85);
 
-      // Free up memory
+      // Update database
+      $stmt = mysqli_prepare($con, "UPDATE usertable SET image = ? WHERE id = ?");
+      mysqli_stmt_bind_param($stmt, "ss", $newFilename, $userId);
+      mysqli_stmt_execute($stmt);
+
+      // Cleanup
       imagedestroy($originalImage);
       imagedestroy($resizedImage);
 
-      // Retrieve user ID from the session
-      $userId = $_SESSION['id'];
-
-      // Update the image in the database using the ID
-      $sql = "UPDATE usertable SET image=? WHERE id=?";
-      $stmt = mysqli_prepare($con, $sql);
-
-      mysqli_stmt_bind_param($stmt, "si", $imageData, $userId);
-      $edited = mysqli_stmt_execute($stmt);
-
-      if ($edited) {
-        echo "<script>
-                    Swal.fire('Updated', 'Image successfully updated!', 'success')
-                    .then(() => window.location = 'index.php');
-                </script>";
-      } else {
-        echo "<script>
-                    Swal.fire('Error', 'Couldn\'t Update', 'error')
-                    .then(() => window.location = 'index.php');
-                </script>";
-      }
-    } else {
       echo "<script>
-            Swal.fire('Invalid Format', 'Invalid file format. Please upload an image.', 'error')
-            .then(() => window.location = 'index.php');
-        </script>";
+                Swal.fire('Updated', 'Image successfully updated!', 'success')
+                .then(() => window.location = 'index.php');
+            </script>";
+
+    } catch (Exception $e) {
+      error_log($e->getMessage());
+      echo "<script>
+                Swal.fire('Error', '" . addslashes($e->getMessage()) . "', 'error')
+                .then(() => window.location = 'index.php');
+            </script>";
     }
   } else {
     echo "<script>
-        Swal.fire('No Image', 'No image uploaded', 'error')
-        .then(() => window.location = 'index.php');
-    </script>";
+            Swal.fire('Error', 'No image uploaded', 'error')
+            .then(() => window.location = 'index.php');
+        </script>";
   }
   ?>
-
-
-
 </body>
 
 </html>

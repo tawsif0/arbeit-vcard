@@ -14,8 +14,8 @@
 
 <body>
     <?php
-  include("heading.php");
-  ?>
+    include("heading.php");
+    ?>
     <div class="main">
         <p class="title">vCard Platform</p>
         <p class="subtitle">Welcome to vCard</p>
@@ -45,10 +45,10 @@
         </div>
     </section>
     <?php
-  $loggedIn = isset($_SESSION['id']);
-  ?>
+    $loggedIn = isset($_SESSION['id']);
+    ?>
     <div class="card-nft" <?php if ($loggedIn)
-    echo 'style="display: none;"'; ?>>
+        echo 'style="display: none;"'; ?>>
         <div class="scroll-animation">
             <div class="card">
                 <div class="nft">

@@ -6,9 +6,9 @@
     <title>Redirecting</title>
     <link rel="shortcut icon" href="./assests/image/arbeit technology logo.png" type="image/x-icon" />
     <style>
-    body {
-        background: #212529;
-    }
+        body {
+            background: #212529;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
 </head>
